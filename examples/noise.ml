@@ -33,7 +33,7 @@ let buf = load_wav "LightlyRow.wav"
 let curr = ref 0
 
 let my_callback input output len =
-    Array2.blit input output
+    Array1.blit input output
     (*Array1.blit (Array1.sub buf !curr len) (Array2.slice_left output 0);*)
     (*Array1.blit (Array1.sub buf !curr len) (Array2.slice_left output 1);*)
     (*curr := !curr + len*)

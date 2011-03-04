@@ -36,6 +36,7 @@ CFLAGS = -g -O2 -pthread   -Wall -DCAML_NAME_SPACE
 CPPFLAGS = 
 NO_CUSTOM = yes
 OCAMLFLAGS = 
+THREADS=1
 
 
 all: $(BEST)

@@ -48,6 +48,10 @@ external get_last_host_error : unit -> int * string = "ocaml_pa_get_last_host_er
 
 external init : unit -> unit = "ocaml_pa_initialize"
 
+let init () =
+    ignore (Thread.self ());
+    init ()
+
 external terminate : unit -> unit = "ocaml_pa_terminate"
 
 external get_host_api_count : unit -> int = "ocaml_pa_get_host_api_count"

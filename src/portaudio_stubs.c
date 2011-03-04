@@ -57,6 +57,8 @@ typedef struct stream__t
   int sample_format_in;
   int sample_format_out;
   char cb[512];
+  int tstart;
+  int tend;
 } stream_t;
 
 #define Stream_t_val(v) (*((stream_t**)Data_custom_val(v)))
@@ -193,12 +195,25 @@ int pa_callback(const void *input_buffer,
 {
     stream_t *st = (stream_t*)user_data;
 
+    if(!st->tstart)
+    {
+        caml_c_thread_register();
+        st->tstart = 1;
+    }
+
     caml_acquire_runtime_system();
     value in, out;
-    in = alloc_ba_input(input_buffer, frames_per_buffer, st);
-    out = alloc_ba_output(output_buffer, frames_per_buffer, st);
+    in = caml_ba_alloc_dims(CAML_BA_FLOAT32 | CAML_BA_C_LAYOUT, 1, input_buffer, frames_per_buffer, NULL);
+    out = caml_ba_alloc_dims(CAML_BA_FLOAT32 | CAML_BA_C_LAYOUT, 1, output_buffer, frames_per_buffer, NULL);
+    /*in = alloc_ba_input(input_buffer, frames_per_buffer, st);*/
+    /*out = alloc_ba_output(output_buffer, frames_per_buffer, st);*/
     caml_callback3(*caml_named_value(st->cb), in, out, Val_int(frames_per_buffer));
     caml_release_runtime_system();
+
+    if(st->tend)
+    {
+        caml_c_thread_unregister();
+    }
     
     return 0;
 }
@@ -208,7 +223,7 @@ static const int format_cst[6] = {paInt8, paInt16, paInt24, paInt32, paFloat32};
 /* TODO: non-interleaved? */
 static int fmt_val(value format)
 {
-  return format_cst[Int_val(format)] | paNonInterleaved;
+  return format_cst[Int_val(format)];
 }
 
 /* The result must be freed after use. */
@@ -296,6 +311,8 @@ CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value
   st->channels_out = outc;
   st->sample_format_in = format;
   st->sample_format_out = format;
+  st->tstart = 0;
+  st->tend = 0;
 
   if(Is_block(cb))
   {
@@ -324,6 +341,9 @@ CAMLprim value ocaml_pa_open_default_stream_byte(value *argv, int argc)
 CAMLprim value ocaml_pa_start_stream(value stream)
 {
   cerr(Pa_StartStream(Stream_val(stream)));
+  caml_enter_blocking_section();
+  Pa_Sleep(1);
+  caml_leave_blocking_section();
 
   return Val_unit;
 }
