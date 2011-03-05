@@ -98,6 +98,6 @@ external abort_stream : stream -> unit = "ocaml_pa_abort_stream"
 
 external sleep : int -> unit = "ocaml_pa_sleep"
 
-external write_stream : stream -> (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array2.t -> int -> int -> unit = "ocaml_pa_write_stream"
+external write_stream : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit = "ocaml_pa_write_stream"
 
-external read_stream : stream -> (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array2.t -> int -> int -> unit = "ocaml_pa_read_stream"
+external read_stream : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit = "ocaml_pa_read_stream"

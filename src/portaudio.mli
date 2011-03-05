@@ -140,7 +140,7 @@ val abort_stream : stream -> unit
 val sleep : int -> unit
 
 (** Write to a stream. *)
-val write_stream : stream -> (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array2.t -> int -> int -> unit
+val write_stream : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
 
 (** Read from a stream. *)
-val read_stream : stream -> (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array2.t -> int -> int -> unit
+val read_stream : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
