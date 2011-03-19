@@ -152,14 +152,45 @@ static int get_ba_type(int fmt)
 {
     if(fmt & paFloat32)
         return CAML_BA_FLOAT32;
+    if(fmt & paInt32 || fmt & paInt24)
+        return CAML_BA_INT32;
+    if(fmt & paInt16)
+        return CAML_BA_SINT16;
+    if(fmt & paInt8)
+        return CAML_BA_SINT8;
 
     return 0;
 }
 
-value alloc_ba_input(const void *data, unsigned long frames, stream_t *st)
+value alloc_ba_input_ni(const void *data, unsigned long frames, stream_t *st)
 {
     int type = get_ba_type(st->sample_format_in);
 
+    if(st->channels_in > 0)
+    {
+        return caml_ba_alloc_dims(type | CAML_BA_C_LAYOUT, 2, (void*)data, st->channels_in, frames, NULL);
+    }
+    return caml_ba_alloc_dims(type | CAML_BA_C_LAYOUT, 0, NULL, NULL);
+}
+
+value alloc_ba_output_ni(void *data, unsigned long frames, stream_t *st)
+{
+    int type = get_ba_type(st->sample_format_out);
+
+    if(st->channels_out > 0)
+    {
+        return caml_ba_alloc_dims(type | CAML_BA_C_LAYOUT, 2, data, st->channels_out, frames, NULL);
+    }
+    return caml_ba_alloc_dims(type | CAML_BA_C_LAYOUT, 0, NULL, NULL);
+}
+
+
+value alloc_ba_input(const void *data, unsigned long frames, stream_t *st)
+{
+    if(st->sample_format_in  & paNonInterleaved)
+        return alloc_ba_input_ni(data, frames, st);
+
+    int type = get_ba_type(st->sample_format_in);
     if(st->channels_in > 0)
     {
         return caml_ba_alloc_dims(type | CAML_BA_C_LAYOUT, 1, (void*)data, st->channels_in*frames, NULL);
@@ -169,8 +200,10 @@ value alloc_ba_input(const void *data, unsigned long frames, stream_t *st)
 
 value alloc_ba_output(void *data, unsigned long frames, stream_t *st)
 {
-    int type = get_ba_type(st->sample_format_out);
+    if(st->sample_format_out & paNonInterleaved)
+        return alloc_ba_output_ni(data, frames, st);
 
+    int type = get_ba_type(st->sample_format_out);
     if(st->channels_out > 0)
     {
         return caml_ba_alloc_dims(type | CAML_BA_C_LAYOUT, 1, data, st->channels_out*frames, NULL);
@@ -188,15 +221,21 @@ int pa_callback(const void *input_buffer,
     stream_t *st = (stream_t*)user_data;
     int ret;
 
-    if(st->tend == 2)
-    {
-        return 0;
-    }
-    if(!st->tstart)
+    if(!st->tstart && !st->tend)
     {
         caml_c_thread_register();
         st->tstart = 1;
     }
+    else if(st->tstart && st->tend)
+    {
+        st->tstart = 0;
+        caml_c_thread_unregister();
+    }
+    else if(st->tend)
+    {
+        return 0;
+    }
+    
 
     caml_acquire_runtime_system();
     value in, out;
@@ -205,13 +244,6 @@ int pa_callback(const void *input_buffer,
     ret = Int_val(caml_callback3(*caml_named_value(st->cb), in, out, Val_int(frames_per_buffer)));
     caml_release_runtime_system();
 
-    if(st->tend == 1)
-    {
-        printf("Unregistering\n");
-        caml_c_thread_unregister();
-        st->tend = 2;
-    }
-    
     return ret;
 }
 
@@ -371,7 +403,133 @@ CAMLprim value ocaml_pa_close_stream(value stream)
   return Val_unit;
 }
 
-void *get_buffer(int fmt, int chans, int ofs, value buf)
+CAMLprim value ocaml_pa_sleep(value time)
+{
+  CAMLparam1(time);
+  caml_enter_blocking_section();
+  Pa_Sleep(Int_val(time));
+  caml_leave_blocking_section();
+  CAMLreturn(Val_unit);
+}
+
+int get_index(int fmt, int chans, int len, int c, int i)
+{
+    int index;
+    if(fmt & paNonInterleaved)
+    {
+        index = len*c + i;
+    }
+    else
+    {
+        index = chans*i + c;
+    }
+}
+
+void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
+{
+    int dim, c, i;
+    dim = Caml_ba_array_val(buf)->dim[0];
+    if(fmt & paFloat32)
+    {
+        float *bufi = malloc(chans * len * sizeof(float));
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(buf, c);
+            for(i = 0; i < len; i++)
+                bufi[get_index(fmt, chans, len, c, i)] = Double_field(bufc, ofs + i);
+        }
+        return bufi;
+    }
+    else if(fmt & paInt32 || fmt & paInt24)
+    {
+        int32 *bufi = malloc(chans * len * sizeof(int32));
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(buf, c);
+            for(i = 0; i < len; i++)
+                bufi[get_index(fmt, chans, len, c, i)] = Int_val(Field(bufc, ofs + i));
+        }
+        return bufi;
+    }
+    else if(fmt & paInt16)
+    {
+        short *bufi = malloc(chans * len * sizeof(int32));
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(buf, c);
+            for(i = 0; i < len; i++)
+                bufi[get_index(fmt, chans, len, c, i)] = Int_val(Field(bufc, ofs + i));
+        }
+        return bufi;
+    }
+    else if(fmt & paInt8)
+    {
+        char *bufi = malloc(chans * len * sizeof(int32));
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(buf, c);
+            for(i = 0; i < len; i++)
+                bufi[get_index(fmt, chans, len, c, i)] = Int_val(Field(bufc, ofs + i));
+        }
+        return bufi;
+    }
+    else
+        return NULL;
+}
+
+CAMLprim value ocaml_pa_write_stream(value _stream, value _buf, value _ofs, value _len)
+{
+  CAMLparam2(_stream, _buf);
+  PaStream *stream = Stream_val(_stream);
+  int ofs = Int_val(_ofs);
+  int len = Int_val(_len);
+  PaError ret;
+  void *buf;
+  int chans = Stream_t_val(_stream)->channels_out;
+  int format = Stream_t_val(_stream)->sample_format_out;
+
+  buf = get_buffer(format, chans, ofs, len, _buf);
+
+  caml_enter_blocking_section();
+  ret = Pa_WriteStream(stream, buf, len);
+  caml_leave_blocking_section();
+  free(buf);
+  cerr(ret);
+
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value ocaml_pa_read_stream(value _stream, value _buf, value _ofs, value _len)
+{
+  CAMLparam2(_stream, _buf);
+  CAMLlocal1(bufc);
+  PaStream *stream = Stream_val(_stream);
+  int ofs = Int_val(_ofs);
+  int len = Int_val(_len);
+  PaError ret;
+  float *buf;
+  int chans = Stream_t_val(_stream)->channels_in;
+  int c, i;
+
+  buf = malloc(chans * len * sizeof(float));
+
+  caml_enter_blocking_section();
+  ret = Pa_ReadStream(stream, buf, len);
+  caml_leave_blocking_section();
+
+  for(c = 0; c < chans; c++)
+  {
+    bufc = Field(_buf, c);
+    for(i = 0; i < len; i++)
+      Store_double_field(bufc, ofs + i, buf[chans*i+c]);
+  }
+  free(buf);
+  cerr(ret);
+
+  CAMLreturn(Val_unit);
+}
+
+void *get_buffer_ba(int fmt, int chans, int ofs, value buf)
 {
     int dim;
     dim = Caml_ba_array_val(buf)->dim[0];
@@ -380,12 +538,7 @@ void *get_buffer(int fmt, int chans, int ofs, value buf)
         float *bufi = Caml_ba_data_val(buf);
         return bufi + chans*ofs;
     }
-    else if(fmt & paInt32)
-    {
-        int32 *bufi = Caml_ba_data_val(buf);
-        return bufi + chans*ofs;
-    }
-    else if(fmt & paInt24)
+    else if(fmt & paInt32 || fmt & paInt24)
     {
         int32 *bufi = Caml_ba_data_val(buf);
         return bufi + chans*ofs;
@@ -404,7 +557,7 @@ void *get_buffer(int fmt, int chans, int ofs, value buf)
         return NULL;
 }
 
-void *get_buffer_ni(int fmt, int chans, int ofs, value buf)
+void *get_buffer_ba_ni(int fmt, int chans, int ofs, value buf)
 {
     int num_dims;
     int dim;
@@ -421,21 +574,10 @@ void *get_buffer_ni(int fmt, int chans, int ofs, value buf)
         }
         return bufo;
     }
-    else if(fmt & paInt32)
+    else if(fmt & paInt32 || fmt & paInt24)
     {
         int32 *bufi = Caml_ba_data_val(buf);
-        int32 **bufo = malloc(chans * sizeof(float*));
-        int c;
-        for(c = 0; c < chans; c++)
-        {
-            bufo[c] = bufi + c*dim + ofs;
-        }
-        return bufo;
-    }
-    else if(fmt & paInt24)
-    {
-        int32 *bufi = Caml_ba_data_val(buf);
-        int32 **bufo = malloc(chans * sizeof(float*));
+        int32 **bufo = malloc(chans * sizeof(int32*));
         int c;
         for(c = 0; c < chans; c++)
         {
@@ -446,7 +588,7 @@ void *get_buffer_ni(int fmt, int chans, int ofs, value buf)
     else if(fmt & paInt16)
     {
         short *bufi = Caml_ba_data_val(buf);
-        short **bufo = malloc(chans * sizeof(float*));
+        short **bufo = malloc(chans * sizeof(short*));
         int c;
         for(c = 0; c < chans; c++)
         {
@@ -457,7 +599,7 @@ void *get_buffer_ni(int fmt, int chans, int ofs, value buf)
     else if(fmt & paInt8)
     {
         char *bufi = Caml_ba_data_val(buf);
-        char **bufo = malloc(chans * sizeof(float*));
+        char **bufo = malloc(chans * sizeof(char*));
         int c;
         for(c = 0; c < chans; c++)
         {
@@ -469,16 +611,7 @@ void *get_buffer_ni(int fmt, int chans, int ofs, value buf)
         return NULL;
 }
 
-CAMLprim value ocaml_pa_sleep(value time)
-{
-  CAMLparam1(time);
-  caml_enter_blocking_section();
-  Pa_Sleep(Int_val(time));
-  caml_leave_blocking_section();
-  CAMLreturn(Val_unit);
-}
-
-CAMLprim value ocaml_pa_write_stream(value _stream, value _buf, value _ofs, value _len)
+CAMLprim value ocaml_pa_write_stream_ba(value _stream, value _buf, value _ofs, value _len)
 {
   CAMLparam2(_stream, _buf);
   PaStream *stream = Stream_val(_stream);
@@ -490,9 +623,9 @@ CAMLprim value ocaml_pa_write_stream(value _stream, value _buf, value _ofs, valu
   int format = Stream_t_val(_stream)->sample_format_out;
 
   if(format & paNonInterleaved)
-      buf = get_buffer_ni(format, chans, ofs, _buf);
+      buf = get_buffer_ba_ni(format, chans, ofs, _buf);
   else
-      buf = get_buffer(format, chans, ofs, _buf);
+      buf = get_buffer_ba(format, chans, ofs, _buf);
 
   caml_enter_blocking_section();
   ret = Pa_WriteStream(stream, buf, len);
@@ -504,7 +637,7 @@ CAMLprim value ocaml_pa_write_stream(value _stream, value _buf, value _ofs, valu
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value ocaml_pa_read_stream(value _stream, value _buf, value _ofs, value _len)
+CAMLprim value ocaml_pa_read_stream_ba(value _stream, value _buf, value _ofs, value _len)
 {
   CAMLparam2(_stream, _buf);
   PaStream *stream = Stream_val(_stream);
@@ -516,9 +649,9 @@ CAMLprim value ocaml_pa_read_stream(value _stream, value _buf, value _ofs, value
   int format = Stream_t_val(_stream)->sample_format_in;
 
   if(format & paNonInterleaved)
-      buf = get_buffer_ni(format, chans, ofs, _buf);
+      buf = get_buffer_ba_ni(format, chans, ofs, _buf);
   else
-      buf = get_buffer(format, chans, ofs, _buf);
+      buf = get_buffer_ba(format, chans, ofs, _buf);
 
   caml_enter_blocking_section();
   ret = Pa_ReadStream(stream, buf, len);
