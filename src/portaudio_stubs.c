@@ -133,6 +133,21 @@ CAMLprim value ocaml_pa_get_default_host_api(value unit)
   return Val_int(cerr(Pa_GetDefaultHostApi()));
 }
 
+CAMLprim value ocaml_pa_get_host_api_info(value id)
+{
+    CAMLparam1(id);
+    CAMLlocal1(res);
+    const PaHostApiInfo *info = Pa_GetHostApiInfo(Int_val(id));
+    res = caml_alloc_tuple(6);
+    Field(res, 0) = Val_int(info->structVersion);
+    Field(res, 1) = Val_int(info->type);
+    Field(res, 2) = caml_copy_string(info->name);
+    Field(res, 3) = Val_int(info->deviceCount);
+    Field(res, 4) = Val_int(info->defaultOutputDevice);
+    Field(res, 5) = Val_int(info->defaultInputDevice);
+    CAMLreturn(res);
+}
+
 CAMLprim value ocaml_pa_get_default_input_device(value unit)
 {
   return Val_int(cerr(Pa_GetDefaultInputDevice()));
@@ -146,6 +161,25 @@ CAMLprim value ocaml_pa_get_default_output_device(value unit)
 CAMLprim value ocaml_pa_get_device_count(value unit)
 {
   return Val_int(cerr(Pa_GetDeviceCount()));
+}
+
+CAMLprim value ocaml_pa_get_device_info(value id)
+{
+    CAMLparam1(id);
+    CAMLlocal1(res);
+    const PaDeviceInfo *info = Pa_GetDeviceInfo(Int_val(id));
+    res = caml_alloc_tuple(10);
+    Field(res, 0) = Val_int(info->structVersion);
+    Field(res, 1) = caml_copy_string(info->name);
+    Field(res, 2) = Val_int(info->hostApi);
+    Field(res, 3) = Val_int(info->maxInputChannels);
+    Field(res, 4) = Val_int(info->maxOutputChannels);
+    Field(res, 5) = caml_copy_double(info->defaultLowInputLatency);
+    Field(res, 6) = caml_copy_double(info->defaultLowOutputLatency);
+    Field(res, 7) = caml_copy_double(info->defaultHighInputLatency);
+    Field(res, 8) = caml_copy_double(info->defaultHighOutputLatency);
+    Field(res, 9) = caml_copy_double(info->defaultSampleRate);
+    CAMLreturn(res);
 }
 
 static int get_ba_type(int fmt)
@@ -423,12 +457,12 @@ int get_index(int fmt, int chans, int len, int c, int i)
     {
         index = chans*i + c;
     }
+    return index;
 }
 
 void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
 {
-    int dim, c, i;
-    dim = Caml_ba_array_val(buf)->dim[0];
+    int c, i;
     if(fmt & paFloat32)
     {
         float *bufi = malloc(chans * len * sizeof(float));
@@ -447,13 +481,13 @@ void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
         {
             value bufc = Field(buf, c);
             for(i = 0; i < len; i++)
-                bufi[get_index(fmt, chans, len, c, i)] = Int_val(Field(bufc, ofs + i));
+                bufi[get_index(fmt, chans, len, c, i)] = Int32_val(Field(bufc, ofs + i));
         }
         return bufi;
     }
     else if(fmt & paInt16)
     {
-        short *bufi = malloc(chans * len * sizeof(int32));
+        short *bufi = malloc(chans * len * sizeof(short));
         for(c = 0; c < chans; c++)
         {
             value bufc = Field(buf, c);
@@ -464,7 +498,7 @@ void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
     }
     else if(fmt & paInt8)
     {
-        char *bufi = malloc(chans * len * sizeof(int32));
+        char *bufi = malloc(chans * len * sizeof(char));
         for(c = 0; c < chans; c++)
         {
             value bufc = Field(buf, c);
@@ -475,6 +509,73 @@ void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
     }
     else
         return NULL;
+}
+
+void *get_read_buffer(int fmt, int chans, int len)
+{
+    if(fmt & paFloat32)
+    {
+        return malloc(chans * len * sizeof(float));
+    }
+    else if(fmt & paInt32 || fmt & paInt24)
+    {
+        return malloc(chans * len * sizeof(int32));
+    }
+    else if(fmt & paInt16)
+    {
+        return malloc(chans * len * sizeof(short));
+    }
+    else if(fmt & paInt8)
+    {
+        return malloc(chans * len * sizeof(char));
+    }
+    else
+        return NULL;
+}
+
+void copy_buffer(void *inbuf, int fmt, int chans, int ofs, int len, value _buf)
+{
+    int c, i;
+    if(fmt & paFloat32)
+    {
+        float *buf = inbuf;
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(_buf, c);
+            for(i = 0; i < len; i++)
+                Store_double_field(bufc, ofs + i, buf[get_index(fmt, chans, len, c, i)]);
+        }
+    }
+    else if(fmt & paInt32 || fmt & paInt24)
+    {
+        int32 *buf = inbuf;
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(_buf, c);
+            for(i = 0; i < len; i++)
+                Field(bufc, ofs + i) = caml_copy_int32(buf[get_index(fmt, chans, len, c, i)]);
+        }
+    }
+    else if(fmt & paInt16)
+    {
+        short *buf = inbuf;
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(_buf, c);
+            for(i = 0; i < len; i++)
+                Field(bufc, ofs + i) = Val_int(buf[get_index(fmt, chans, len, c, i)]);
+        }
+    }
+    else if(fmt & paInt8)
+    {
+        char *buf = inbuf;
+        for(c = 0; c < chans; c++)
+        {
+            value bufc = Field(_buf, c);
+            for(i = 0; i < len; i++)
+                Field(bufc, ofs + i) = Val_int(buf[get_index(fmt, chans, len, c, i)]);
+        }
+    }
 }
 
 CAMLprim value ocaml_pa_write_stream(value _stream, value _buf, value _ofs, value _len)
@@ -502,27 +603,22 @@ CAMLprim value ocaml_pa_write_stream(value _stream, value _buf, value _ofs, valu
 CAMLprim value ocaml_pa_read_stream(value _stream, value _buf, value _ofs, value _len)
 {
   CAMLparam2(_stream, _buf);
-  CAMLlocal1(bufc);
   PaStream *stream = Stream_val(_stream);
   int ofs = Int_val(_ofs);
   int len = Int_val(_len);
   PaError ret;
-  float *buf;
+  void *buf;
   int chans = Stream_t_val(_stream)->channels_in;
-  int c, i;
+  int format = Stream_t_val(_stream)->sample_format_in;
 
-  buf = malloc(chans * len * sizeof(float));
+  buf = get_read_buffer(format, chans, len);
 
   caml_enter_blocking_section();
   ret = Pa_ReadStream(stream, buf, len);
   caml_leave_blocking_section();
 
-  for(c = 0; c < chans; c++)
-  {
-    bufc = Field(_buf, c);
-    for(i = 0; i < len; i++)
-      Store_double_field(bufc, ofs + i, buf[chans*i+c]);
-  }
+  copy_buffer(buf, format, chans, ofs, len, _buf);
+
   free(buf);
   cerr(ret);
 

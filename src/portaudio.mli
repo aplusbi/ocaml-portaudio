@@ -69,11 +69,41 @@ val init : unit -> unit
 val terminate : unit -> unit
 
 (** {2 Host API} *)
+
+(** Host API Information *)
+type host_api_info =
+    {
+        h_struct_version : int;
+        h_host_api_type : int;
+        h_name : string;
+        h_device_count : int;
+        h_default_input_device : int;
+        h_default_output_device : int
+    }
+
 (** Number of available host API. *)
 val get_host_api_count : unit -> int
 
 (** Index of the default host API. *)
 val get_default_host_api : unit -> int
+
+(** Information on a host API *)
+val get_host_api_info : int -> host_api_info
+
+(** Device Information *)
+type device_info =
+    {
+        d_struct_version : int;
+        d_name : string;
+        d_host_api : int;
+        d_max_input_channels : int;
+        d_max_output_channels : int;
+        d_default_low_input_latency : float;
+        d_default_low_output_latency : float;
+        d_default_high_input_latency : float;
+        d_default_high_output_latency : float;
+        d_default_sample_rate : float
+    }
 
 (** Default input device. *)
 val get_default_input_device : unit -> int
@@ -83,6 +113,9 @@ val get_default_output_device : unit -> int
 
 (** Number of available devices. *)
 val get_device_count : unit -> int
+
+(** Information on device *)
+val get_device_info : int -> device_info
 
 (** {2 Streams} *)
 
