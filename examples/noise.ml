@@ -47,9 +47,7 @@ let () =
     (*let stream = open_default_stream ~format:Portaudio.Format_int16 1 1 buflen 256 in*)
     start_stream stream;
     let len = (Genarray.dims buf).(0) / 256 in
-    Portaudio.sleep 2000;
-    Portaudio.stop_stream stream;
-    Printf.printf "Done\n";
+    Portaudio.sleep 100000;
     (*for i = 0 to len do*)
         (*Portaudio.write_stream stream buf (i*256) 256*)
     (*done;*)

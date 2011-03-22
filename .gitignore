@@ -1,6 +1,9 @@
 _build/
 *.o
 *.cmo
+*.cmx
+*.cma
+*.cmxa
 *.cmi
 *.swp
 *.byte
