@@ -328,23 +328,44 @@ CAMLprim value ocaml_pa_open_stream(value inparam, value outparam, value rate, v
   CAMLlocal1(ans);
   stream_t *st;
   PaStream *stream;
-  PaStreamParameters *ip, *op;
+  PaStreamParameters *ip = NULL, *op = NULL;
   int ret;
+  int c_in = 0;
+  int c_out = 0;
+  int f_in = 0;
+  int f_out = 0;
 
-  ip = sp_val(inparam);
-  op = sp_val(outparam);
+  if(Is_block(inparam))
+  {
+      ip = sp_val(Field(inparam, 0));
+      c_in =  op->channelCount;
+      f_in = op->sampleFormat;
+  }
+  if(Is_block(outparam))
+  {
+      op = sp_val(Field(outparam, 0));
+      c_out =  op->channelCount;
+      f_out = op->sampleFormat;
+  }
   /* TODO: use flags and callback */
   ret = Pa_OpenStream(&stream, ip, op, Double_val(rate), Int_val(frames), paNoFlag, NULL, NULL);
-  free(ip);
-  free(op);
+  if(ip != NULL)
+  {
+      free(ip);
+  }
+  if(op != NULL)
+  {
+      free(op);
+  }
   cerr(ret);
   ans = caml_alloc_custom(&stream_ops, sizeof(stream_t*), 1, 0);
+  printf("%d\n", ret);
   st = malloc(sizeof(stream_t));
   st->stream = stream;
-  st->channels_in = ip->channelCount;
-  st->channels_out = op->channelCount;
-  st->sample_format_in = ip->sampleFormat;
-  st->sample_format_out = op->sampleFormat;
+  st->channels_in = c_in;
+  st->channels_out = c_out;
+  st->sample_format_in = f_in;
+  st->sample_format_out = f_out;
   Stream_t_val(ans) = st;
 
   CAMLreturn(ans);

@@ -27,7 +27,7 @@ SOURCES = portaudio_stubs.c portaudio.mli portaudio.ml
 RESULT = portaudio
 OCAMLDOCFLAGS = -stars
 LIBINSTALL_FILES = $(wildcard *.mli *.cmi *.cma *.cmxa *.cmx *.a *.so)
-ACLIBS =  -lportaudio -lasound -lm -lpthread  
+ACLIBS =  -lportaudio -lm -lpthread  
 LDFLAGS =   
 CLIBS = $(ACLIBS:-l%=%)
 LIBDIRS = $(LDFLAGS:-L%=%)
@@ -36,7 +36,7 @@ CFLAGS = -g -O2 -pthread   -Wall -DCAML_NAME_SPACE
 CPPFLAGS = 
 NO_CUSTOM = yes
 OCAMLFLAGS = 
-THREADS=1
+THREADS = 1
 
 
 all: $(BEST)

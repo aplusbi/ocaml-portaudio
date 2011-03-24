@@ -106,9 +106,9 @@ type stream_flag
 
 type stream
 
-external open_stream : stream_parameters -> stream_parameters -> float -> int -> stream_flag list -> (unit -> unit) option -> stream = "ocaml_pa_open_stream_byte" "ocaml_pa_open_stream"
+external open_stream : stream_parameters option -> stream_parameters option -> float -> int -> stream_flag list -> string option -> stream = "ocaml_pa_open_stream_byte" "ocaml_pa_open_stream"
 
-let open_stream ip op rate buflen ?callback flags =
+let open_stream ip op rate buflen ?(callback=None) flags =
   open_stream ip op rate buflen flags callback
 
 external open_default_stream : int -> int -> sample_format -> int -> int -> string option -> stream = "ocaml_pa_open_default_stream_byte" "ocaml_pa_open_default_stream"

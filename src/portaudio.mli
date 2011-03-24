@@ -136,20 +136,16 @@ type stream_parameters =
       latency : float;
     }
 
-(*
 type stream_flag
-*)
 
 type stream
 
-(*
 (** [open_stream inparam outparam rate bufframes callback flags] opens a new
   * stream with input stream of format [inparam], output stream of format
   * [outparam] at [rate] samples per second, with [bufframes] frames per buffer
   * passed the callback function [callback] (0 means leave this choice to
   * portaudio). *)
-val open_stream : stream_parameters -> stream_parameters -> float -> int -> ?callback:(unit -> unit) -> stream_flag list -> stream
-*)
+val open_stream : stream_parameters option -> stream_parameters option -> float -> int -> ?callback:(string option) -> stream_flag list -> stream
 
 (** [open_default_stream callback format inchans outchans rate bufframes] opens
   * default stream with [callback] as callback function, handling samples in
