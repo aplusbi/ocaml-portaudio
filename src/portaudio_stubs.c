@@ -481,52 +481,32 @@ int get_index(int fmt, int chans, int len, int c, int i)
     return index;
 }
 
+#define GET_BUFFER(type, elem) type *bufi = malloc(chans * len * sizeof(type)); \
+          for(c = 0; c < chans; ++c) { \
+              value bufc = Field(buf, c); \
+              for(i = 0; i < len; ++i) { \
+                  bufi[get_index(fmt, chans, len, c, i)] = elem; \
+              } } \
+          return bufi;
+
 void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
 {
     int c, i;
     if(fmt & paFloat32)
     {
-        float *bufi = malloc(chans * len * sizeof(float));
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(buf, c);
-            for(i = 0; i < len; i++)
-                bufi[get_index(fmt, chans, len, c, i)] = Double_field(bufc, ofs + i);
-        }
-        return bufi;
+        GET_BUFFER(float, Double_field(bufc, ofs + i))
     }
     else if(fmt & paInt32 || fmt & paInt24)
     {
-        int32 *bufi = malloc(chans * len * sizeof(int32));
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(buf, c);
-            for(i = 0; i < len; i++)
-                bufi[get_index(fmt, chans, len, c, i)] = Int32_val(Field(bufc, ofs + i));
-        }
-        return bufi;
+        GET_BUFFER(int32, Int32_val(Field(bufc, ofs + i)))
     }
     else if(fmt & paInt16)
     {
-        short *bufi = malloc(chans * len * sizeof(short));
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(buf, c);
-            for(i = 0; i < len; i++)
-                bufi[get_index(fmt, chans, len, c, i)] = Int_val(Field(bufc, ofs + i));
-        }
-        return bufi;
+        GET_BUFFER(short, Int_val(Field(bufc, ofs + i)))
     }
     else if(fmt & paInt8)
     {
-        char *bufi = malloc(chans * len * sizeof(char));
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(buf, c);
-            for(i = 0; i < len; i++)
-                bufi[get_index(fmt, chans, len, c, i)] = Int_val(Field(bufc, ofs + i));
-        }
-        return bufi;
+        GET_BUFFER(char, Int_val(Field(bufc, ofs + i)))
     }
     else
         return NULL;
@@ -554,48 +534,31 @@ void *get_read_buffer(int fmt, int chans, int len)
         return NULL;
 }
 
+#define COPY_BUFFER(type, store, elem) type *buf = inbuf; \
+        for(c = 0; c < chans; c++) { \
+            value bufc = Field(_buf, c); \
+            for(i = 0; i < len; i++) \
+                store(bufc, ofs + i, elem(buf[get_index(fmt, chans, len, c, i)])); \
+        }
+
 void copy_buffer(void *inbuf, int fmt, int chans, int ofs, int len, value _buf)
 {
     int c, i;
     if(fmt & paFloat32)
     {
-        float *buf = inbuf;
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(_buf, c);
-            for(i = 0; i < len; i++)
-                Store_double_field(bufc, ofs + i, buf[get_index(fmt, chans, len, c, i)]);
-        }
+        COPY_BUFFER(float, Store_double_field, (float))
     }
     else if(fmt & paInt32 || fmt & paInt24)
     {
-        int32 *buf = inbuf;
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(_buf, c);
-            for(i = 0; i < len; i++)
-                Field(bufc, ofs + i) = caml_copy_int32(buf[get_index(fmt, chans, len, c, i)]);
-        }
+        COPY_BUFFER(int32, Store_field, caml_copy_int32)
     }
     else if(fmt & paInt16)
     {
-        short *buf = inbuf;
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(_buf, c);
-            for(i = 0; i < len; i++)
-                Field(bufc, ofs + i) = Val_int(buf[get_index(fmt, chans, len, c, i)]);
-        }
+        COPY_BUFFER(short, Store_field, Val_int);
     }
     else if(fmt & paInt8)
     {
-        char *buf = inbuf;
-        for(c = 0; c < chans; c++)
-        {
-            value bufc = Field(_buf, c);
-            for(i = 0; i < len; i++)
-                Field(bufc, ofs + i) = Val_int(buf[get_index(fmt, chans, len, c, i)]);
-        }
+        COPY_BUFFER(char, Store_field, Val_int);
     }
 }
 
@@ -674,55 +637,36 @@ void *get_buffer_ba(int fmt, int chans, int ofs, value buf)
         return NULL;
 }
 
+#define GET_BUFFER_BA(type) type *bufi = Caml_ba_data_val(buf); \
+        type **bufo = malloc(chans * sizeof(type*)); \
+        for(c = 0; c < chans; c++) \
+        { \
+            bufo[c] = bufi + c*dim + ofs; \
+        } \
+        return bufo; \
+
 void *get_buffer_ba_ni(int fmt, int chans, int ofs, value buf)
 {
     int num_dims;
     int dim;
+    int c;
     num_dims = Caml_ba_array_val(buf)->num_dims;
     dim = Caml_ba_array_val(buf)->dim[(num_dims - 1)];
     if(fmt & paFloat32)
     {
-        float *bufi = Caml_ba_data_val(buf);
-        float **bufo = malloc(chans * sizeof(float*));
-        int c;
-        for(c = 0; c < chans; c++)
-        {
-            bufo[c] = bufi + c*dim + ofs;
-        }
-        return bufo;
+        GET_BUFFER_BA(float)
     }
     else if(fmt & paInt32 || fmt & paInt24)
     {
-        int32 *bufi = Caml_ba_data_val(buf);
-        int32 **bufo = malloc(chans * sizeof(int32*));
-        int c;
-        for(c = 0; c < chans; c++)
-        {
-            bufo[c] = bufi + c*dim + ofs;
-        }
-        return bufo;
+        GET_BUFFER_BA(int32)
     }
     else if(fmt & paInt16)
     {
-        short *bufi = Caml_ba_data_val(buf);
-        short **bufo = malloc(chans * sizeof(short*));
-        int c;
-        for(c = 0; c < chans; c++)
-        {
-            bufo[c] = bufi + c*dim + ofs;
-        }
-        return bufo;
+        GET_BUFFER_BA(short)
     }
     else if(fmt & paInt8)
     {
-        char *bufi = Caml_ba_data_val(buf);
-        char **bufo = malloc(chans * sizeof(char*));
-        int c;
-        for(c = 0; c < chans; c++)
-        {
-            bufo[c] = bufi + c*dim + ofs;
-        }
-        return bufo;
+        GET_BUFFER_BA(char)
     }
     else
         return NULL;
