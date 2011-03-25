@@ -11,15 +11,12 @@ let choose_device () =
     read_int ()
 
 let choose_format () =
-    let formats = [|("Format_int8",Format_int8); ("Format_int16",Format_int16);
-    ("Format_int24",Format_int24); ("Format_int32",Format_int32);
-    ("Format_float32",Format_float32)|] in
+    let formats = [|"format_int8"; "format_int16"; "format_int24"; "format_int32"; "format_float32"|] in
     for i = 0 to (Array.length formats) - 1 do
-        let (s,_) = formats.(i) in
+        let s = formats.(i) in
         Printf.printf "%d\t%s\n" i s
     done;
-    let (_, f) = formats.(read_int ()) in
-    f
+    read_int ()
 
 let test_array stream init randf randv = 
     print_endline "Testing arrays...";
@@ -45,32 +42,48 @@ let test_bigarray stream batype randf randv =
         Portaudio.write_stream_ba stream ba 0 256
     done
 
+let start d = function
+    | 0 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int8; latency=1. } in
+        let stream = open_stream None outparam 11025. 256 [] in
+        start_stream stream;
+        test_array stream 0 Random.int 256;
+        test_bigarray stream int8_signed Random.int 256;
+        close_stream stream
+    | 1 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int16; latency=1. } in
+        let stream = open_stream None outparam 11025. 256 [] in
+        start_stream stream;
+        test_array stream 0 Random.int 65536;
+        test_bigarray stream int16_signed Random.int 65536;
+        close_stream stream
+    | 2 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int24; latency=1. } in
+        let stream = open_stream None outparam 11025. 256 [] in
+        start_stream stream;
+        test_array stream Int32.zero Random.int32 (Int32.of_int (4096*4096));
+        test_bigarray stream int32 Random.int32 (Int32.of_int (4096*4096));
+        close_stream stream
+    | 3 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int32; latency=1. } in
+        let stream = open_stream None outparam 11025. 256 [] in
+        start_stream stream;
+        test_array stream Int32.zero Random.int32 Int32.max_int;
+        test_bigarray stream int32 Random.int32 Int32.max_int;
+        close_stream stream
+    | 4 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_float32; latency=1. } in
+        let stream = open_stream None outparam 11025. 256 [] in
+        start_stream stream;
+        test_array stream 0. (fun () -> 1. -. (Random.float 2.)) ();
+        test_bigarray stream float32 (fun () -> 1. -. (Random.float 2.)) ();
+        close_stream stream
+
 let rec main () =
     let d = choose_device () in
     if d = -1 then exit 0;
     let fmt = choose_format () in
-    let outparam = Some { channels=2; device=d; sample_format=fmt; latency=1. } in
-    let stream = open_stream None outparam 11025. 256 [] in
-    start_stream stream;
-    begin
-        match fmt with
-        | Format_int8 ->
-            test_array stream 0 Random.int 256;
-            test_bigarray stream int8_unsigned Random.int 256
-        | Format_int16 ->
-            test_array stream 0 Random.int 65536;
-            test_bigarray stream int16_unsigned Random.int 65536
-        | Format_int24 ->
-            test_array stream Int32.zero Random.int32 (Int32.of_int (4096*4096));
-            test_bigarray stream int32 Random.int32 (Int32.of_int (4096*4096))
-        | Format_int32 ->
-            test_array stream Int32.zero Random.int32 Int32.max_int;
-            test_bigarray stream int32 Random.int32 Int32.max_int
-        | Format_float32 ->
-            test_array stream 0. (fun () -> 1. -. (Random.float 2.)) ();
-            test_bigarray stream float32 (fun () -> 1. -. (Random.float 2.)) ()
-    end;
-    close_stream stream;
+    start d fmt;
     main ()
 
 let () =
