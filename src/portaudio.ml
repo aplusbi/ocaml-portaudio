@@ -92,44 +92,52 @@ external get_device_count : unit -> int = "ocaml_pa_get_device_count"
 
 external get_device_info : int -> device_info = "ocaml_pa_get_device_info"
 
-type sample_format = Format_int8 | Format_int16 | Format_int24 | Format_int32 | Format_float32
+(*type sample_format = Format_int8 | Format_int16 | Format_int24 | Format_int32 | Format_float32*)
 
-type stream_parameters =
+type ('a, 'b) sample_format = int
+
+let format_int8 = 0
+let format_int16 = 1
+let format_int24 = 2
+let format_int32 = 3
+let format_float32 = 4
+
+type ('a, 'b) stream_parameters =
     {
       channels : int;
       device : int;
-      sample_format : sample_format;
+      sample_format : ('a, 'b) sample_format;
       latency : float;
     }
 
 type stream_flag
 
-type stream
+type ('a, 'b) stream
 
-external open_stream : stream_parameters option -> stream_parameters option -> float -> int -> stream_flag list -> string option -> stream = "ocaml_pa_open_stream_byte" "ocaml_pa_open_stream"
+external open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> float -> int -> stream_flag list -> string option -> ('a, 'b) stream = "ocaml_pa_open_stream_byte" "ocaml_pa_open_stream"
 
 let open_stream ip op rate buflen ?(callback=None) flags =
   open_stream ip op rate buflen flags callback
 
-external open_default_stream : int -> int -> sample_format -> int -> int -> string option -> stream = "ocaml_pa_open_default_stream_byte" "ocaml_pa_open_default_stream"
+external open_default_stream : int -> int -> ('a, 'b) sample_format -> int -> int -> string option -> ('a, 'b) stream = "ocaml_pa_open_default_stream_byte" "ocaml_pa_open_default_stream"
 
-let open_default_stream ?callback ?(format=Format_float32) ic oc rate frames =
+let open_default_stream ?callback ?(format=format_float32) ic oc rate frames =
   open_default_stream ic oc format rate frames callback
 
-external close_stream : stream -> unit = "ocaml_pa_close_stream"
+external close_stream : ('a, 'b) stream -> unit = "ocaml_pa_close_stream"
 
-external start_stream : stream -> unit = "ocaml_pa_start_stream"
+external start_stream : ('a, 'b) stream -> unit = "ocaml_pa_start_stream"
 
-external stop_stream : stream -> unit = "ocaml_pa_stop_stream"
+external stop_stream : ('a, 'b) stream -> unit = "ocaml_pa_stop_stream"
 
-external abort_stream : stream -> unit = "ocaml_pa_abort_stream"
+external abort_stream : ('a, 'b) stream -> unit = "ocaml_pa_abort_stream"
 
 external sleep : int -> unit = "ocaml_pa_sleep"
 
-external write_stream : stream -> 'a array array -> int -> int -> unit = "ocaml_pa_write_stream"
+external write_stream : ('a, 'b) stream -> 'a array array -> int -> int -> unit = "ocaml_pa_write_stream"
 
-external read_stream : stream -> 'a array array -> int -> int -> unit = "ocaml_pa_read_stream"
+external read_stream : ('a, 'b) stream -> 'a array array -> int -> int -> unit = "ocaml_pa_read_stream"
 
-external write_stream_ba : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit = "ocaml_pa_write_stream_ba"
+external write_stream_ba : ('a, 'b) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit = "ocaml_pa_write_stream_ba"
 
-external read_stream_ba : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit = "ocaml_pa_read_stream_ba"
+external read_stream_ba : ('a, 'b) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit = "ocaml_pa_read_stream_ba"

@@ -120,62 +120,73 @@ val get_device_info : int -> device_info
 (** {2 Streams} *)
 
 (** Format of samples. *)
-type sample_format =
-  | Format_int8
-  | Format_int16
-  | Format_int24
-  | Format_int32
-  | Format_float32
+(*type sample_format =*)
+  (*| Format_int8*)
+  (*| Format_int16*)
+  (*| Format_int24*)
+  (*| Format_int32*)
+  (*| Format_float32*)
 
-(** Parameters of the stream. *)
-type stream_parameters =
+type ('a, 'b) sample_format
+
+val format_int8 : (int, Bigarray.int8_signed_elt) sample_format
+
+val format_int16 : (int, Bigarray.int16_signed_elt) sample_format
+
+val format_int24 : (int32, Bigarray.int32_elt) sample_format
+
+val format_int32 : (int32, Bigarray.int32_elt) sample_format
+
+val format_float32 : (float, Bigarray.float32_elt) sample_format
+
+type ('a, 'b) stream_parameters =
     {
       channels : int;
       device : int;
-      sample_format : sample_format;
+      sample_format : ('a, 'b) sample_format;
       latency : float;
     }
 
 type stream_flag
 
-type stream
+type ('a, 'b) stream
 
 (** [open_stream inparam outparam rate bufframes callback flags] opens a new
   * stream with input stream of format [inparam], output stream of format
   * [outparam] at [rate] samples per second, with [bufframes] frames per buffer
   * passed the callback function [callback] (0 means leave this choice to
   * portaudio). *)
-val open_stream : stream_parameters option -> stream_parameters option -> float -> int -> ?callback:(string option) -> stream_flag list -> stream
+val open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> float -> int -> ?callback:(string option) -> stream_flag list -> ('a, 'b) stream
 
 (** [open_default_stream callback format inchans outchans rate bufframes] opens
   * default stream with [callback] as callback function, handling samples in
   * [format] format with [inchans] input channels and [outchans] output channels
   * at [rate] samples per seconds with handling buffers of size [bufframes]. *)
-val open_default_stream : ?callback:string -> ?format:sample_format -> int -> int -> int -> int -> stream
+val open_default_stream : ?callback:string -> ?format:(('a, 'b) sample_format) -> int -> int -> int -> int -> ('a, 'b) stream
 
 (** Close a stream. *)
-val close_stream : stream -> unit
+val close_stream : ('a, 'b) stream -> unit
 
 (** Start a stream. *)
-val start_stream : stream -> unit
+val start_stream : ('a, 'b) stream -> unit
 
 (** Stop a stream. *)
-val stop_stream : stream -> unit
+val stop_stream : ('a, 'b) stream -> unit
 
 (** Abort a stream. *)
-val abort_stream : stream -> unit
+val abort_stream : ('a, 'b) stream -> unit
 
 (** Sleep. *)
 val sleep : int -> unit
 
 (** Write to a stream. *)
-val write_stream : stream -> 'a array array -> int -> int -> unit
+val write_stream : ('a, 'b) stream -> 'a array array -> int -> int -> unit
 
 (** Read from a stream. *)
-val read_stream : stream -> 'a array array -> int -> int -> unit
+val read_stream : ('a, 'b) stream -> 'a array array -> int -> int -> unit
 
 (** Write to a stream using a bigarray. *)
-val write_stream_ba : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
+val write_stream_ba : ('a, 'b) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
 
 (** Read from a stream using a bigarray. *)
-val read_stream_ba : stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
+val read_stream_ba : ('a, 'b) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
