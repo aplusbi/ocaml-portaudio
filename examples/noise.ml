@@ -18,6 +18,11 @@ let choose_format () =
     done;
     read_int ()
 
+let choose_callback () =
+    print_endline "0 blocking write";
+    print_endline "1 callback";
+    read_int ()
+
 let test_array stream init randf randv = 
     print_endline "Testing arrays...";
     let buf = Array.create 256 init in
@@ -30,15 +35,18 @@ let test_array stream init randf randv =
         Portaudio.write_stream stream bbuf 0 256
     done
 
+let fill_ba ba randf randv =
+    for i = 0 to 255 do
+        let rand = randf randv in
+        Genarray.set ba [|2*i|] rand;
+        Genarray.set ba [|2*i+1|] rand
+    done
+
 let test_bigarray stream batype randf randv = 
     print_endline "Testing Bigarrays...";
     let ba = Genarray.create batype c_layout [|2*256|] in
     for j = 0 to 100 do
-        for i = 0 to 255 do
-            let rand = randf randv in
-            Genarray.set ba [|2*i|] rand;
-            Genarray.set ba [|2*i+1|] rand
-        done;
+        fill_ba ba randf randv;
         Portaudio.write_stream_ba stream ba 0 256
     done
 
@@ -78,15 +86,66 @@ let start d = function
         test_array stream 0. (fun () -> 1. -. (Random.float 2.)) ();
         test_bigarray stream float32 (fun () -> 1. -. (Random.float 2.)) ();
         close_stream stream
+    | _ -> ()
+
+let start_callback d fmt =
+    let cb r x y l =
+        for i = 0 to 2*l - 1 do
+            Genarray.set y [|i|] (r ()) 
+        done;
+        0
+    in
+    match fmt with
+    | 0 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int8; latency=1. } in
+        let r () = Random.int 256 in
+        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        start_stream stream;
+        sleep 5000;
+        close_stream stream
+    | 1 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int16; latency=1. } in
+        let r () = Random.int 65536 in
+        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        start_stream stream;
+        sleep 5000;
+        close_stream stream
+    | 2 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int24; latency=1. } in
+        let r () = Random.int32 (Int32.of_int (4096*4096)) in
+        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        start_stream stream;
+        sleep 5000;
+        close_stream stream
+    | 3 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_int32; latency=1. } in
+        let r () = Random.int32 (Int32.max_int) in
+        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        start_stream stream;
+        sleep 5000;
+        close_stream stream
+    | 4 ->
+        let outparam = Some { channels=2; device=d; sample_format=format_float32; latency=1. } in
+        let r () = 1. -. (Random.float 2.) in
+        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        start_stream stream;
+        sleep 5000;
+        close_stream stream
+    | _ -> ()
 
 let rec main () =
     let d = choose_device () in
     if d = -1 then exit 0;
     let fmt = choose_format () in
-    start d fmt;
+    (match choose_callback () with
+    | 0 -> start d fmt
+    | 1 -> start_callback d fmt
+    | _ -> ());
     main ()
 
 let () =
+    let r = Genarray.create float32 c_layout [|2*256|] in
+    fill_ba r (fun () -> 1. -. (Random.float 2.)) ();
     Printf.printf "Using %s.\n%!" (get_version_string ());
     Random.self_init ();
     Portaudio.init ();
