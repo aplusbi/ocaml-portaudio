@@ -56,7 +56,7 @@ typedef struct stream__t
   int channels_out;
   int sample_format_in;
   int sample_format_out;
-  char cb[512];
+  value cb;
   int tstart;
   int tend;
 } stream_t;
@@ -264,18 +264,18 @@ int pa_callback(const void *input_buffer,
     {
         st->tstart = 0;
         caml_c_thread_unregister();
+        return 0;
     }
     else if(st->tend)
     {
         return 0;
     }
     
-
     caml_acquire_runtime_system();
     value in, out;
     in = alloc_ba_input(input_buffer, frames_per_buffer, st);
     out = alloc_ba_output(output_buffer, frames_per_buffer, st);
-    ret = Int_val(caml_callback3(*caml_named_value(st->cb), in, out, Val_int(frames_per_buffer)));
+    ret = Int_val(caml_callback3(st->cb, in, out, Val_int(frames_per_buffer)));
     caml_release_runtime_system();
 
     return ret;
@@ -309,6 +309,7 @@ static void finalize_stream(value s)
 
   if (st->stream)
     Pa_CloseStream(st->stream);
+  caml_remove_generational_global_root(&st->cb);
   free(st);
 }
 
@@ -325,47 +326,50 @@ static struct custom_operations stream_ops =
 CAMLprim value ocaml_pa_open_stream(value inparam, value outparam, value rate, value frames, value flags, value cb)
 {
   CAMLparam5(inparam, outparam, rate, flags, cb);
+  CAMLxparam1(cb);
   CAMLlocal1(ans);
   stream_t *st;
   PaStream *stream;
   PaStreamParameters *ip = NULL, *op = NULL;
   int ret;
-  int c_in = 0;
-  int c_out = 0;
-  int f_in = 0;
-  int f_out = 0;
+  PaStreamCallback *callb = NULL;
+
+  st = malloc(sizeof(stream_t));
+  memset(st, 0, sizeof(*st));
+  st->tstart = 0;
+  st->tend = 0;
 
   if(Is_block(inparam))
   {
       ip = sp_val(Field(inparam, 0));
-      c_in =  op->channelCount;
-      f_in = op->sampleFormat;
+      st->channels_in = ip->channelCount;
+      st->sample_format_in = ip->sampleFormat;
   }
   if(Is_block(outparam))
   {
       op = sp_val(Field(outparam, 0));
-      c_out =  op->channelCount;
-      f_out = op->sampleFormat;
+      st->channels_out = op->channelCount;
+      st->sample_format_out = op->sampleFormat;
   }
-  /* TODO: use flags and callback */
-  ret = Pa_OpenStream(&stream, ip, op, Double_val(rate), Int_val(frames), paNoFlag, NULL, NULL);
+  if(Is_block(cb))
+  {
+    st->cb = Field(cb, 0);
+    caml_register_generational_global_root(&st->cb);
+    callb = &pa_callback;
+  }
+
+  ret = Pa_OpenStream(&stream, ip, op, Double_val(rate), Int_val(frames), paNoFlag, callb, st);
+
+  if(ret < 0)
+      free(st);
   if(ip != NULL)
-  {
       free(ip);
-  }
   if(op != NULL)
-  {
       free(op);
-  }
+
   cerr(ret);
-  ans = caml_alloc_custom(&stream_ops, sizeof(stream_t*), 1, 0);
-  printf("%d\n", ret);
-  st = malloc(sizeof(stream_t));
   st->stream = stream;
-  st->channels_in = c_in;
-  st->channels_out = c_out;
-  st->sample_format_in = f_in;
-  st->sample_format_out = f_out;
+  ans = caml_alloc_custom(&stream_ops, sizeof(stream_t*), 1, 0);
   Stream_t_val(ans) = st;
 
   CAMLreturn(ans);
@@ -378,7 +382,8 @@ CAMLprim value ocaml_pa_open_stream_byte(value *argv, int argc)
 
 CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value fmt, value rate, value frames, value cb)
 {
-  CAMLparam1(cb);
+  CAMLparam5(inchans, outchans, fmt, rate, frames);
+  CAMLxparam1(cb);
   CAMLlocal1(ans);
   stream_t *st;
   PaStream *stream;
@@ -400,8 +405,8 @@ CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value
 
   if(Is_block(cb))
   {
-    char *name = String_val(Field(cb, 0));
-    strncpy(st->cb, name, 512);
+    st->cb = Field(cb, 0);
+    caml_register_generational_global_root(&st->cb);
     callb = &pa_callback;
   }
 

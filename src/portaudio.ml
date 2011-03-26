@@ -114,14 +114,16 @@ type stream_flag
 
 type ('a, 'b) stream
 
-external open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> float -> int -> stream_flag list -> string option -> ('a, 'b) stream = "ocaml_pa_open_stream_byte" "ocaml_pa_open_stream"
+type ('a, 'b) callback = ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int
+
+external open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> float -> int -> stream_flag list -> ('a, 'b) callback option -> ('a, 'b) stream = "ocaml_pa_open_stream_byte" "ocaml_pa_open_stream"
 
 let open_stream ip op rate buflen ?(callback=None) flags =
   open_stream ip op rate buflen flags callback
 
-external open_default_stream : int -> int -> ('a, 'b) sample_format -> int -> int -> string option -> ('a, 'b) stream = "ocaml_pa_open_default_stream_byte" "ocaml_pa_open_default_stream"
+external open_default_stream : int -> int -> ('a, 'b) sample_format -> int -> int -> ('a, 'b) callback option -> ('a, 'b) stream = "ocaml_pa_open_default_stream_byte" "ocaml_pa_open_default_stream"
 
-let open_default_stream ?callback ?(format=format_float32) ic oc rate frames =
+let open_default_stream ?(callback=None) ?(format=format_float32) ic oc rate frames =
   open_default_stream ic oc format rate frames callback
 
 external close_stream : ('a, 'b) stream -> unit = "ocaml_pa_close_stream"
