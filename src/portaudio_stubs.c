@@ -283,21 +283,20 @@ int pa_callback(const void *input_buffer,
 
 static const int format_cst[6] = {paInt8, paInt16, paInt24, paInt32, paFloat32};
 
-/* TODO: non-interleaved? */
-static int fmt_val(value format)
+static int fmt_val(value format, int interleaved)
 {
-  return format_cst[Int_val(format)];
+  return format_cst[Int_val(format)] | (interleaved ? 0 : paNonInterleaved);
 }
 
 /* The result must be freed after use. */
-static PaStreamParameters* sp_val(value vsp)
+static PaStreamParameters* sp_val(value vsp, int interleaved)
 {
   PaStreamParameters *sp = malloc(sizeof(PaStreamParameters));
 
   sp->channelCount = Int_val(Field(vsp, 0));
   sp->device = Int_val(Field(vsp, 1));
   sp->hostApiSpecificStreamInfo = NULL;
-  sp->sampleFormat = fmt_val(Field(vsp, 2));
+  sp->sampleFormat = fmt_val(Field(vsp, 2), interleaved);
   sp->suggestedLatency = Double_val(Field(vsp, 3));
 
   return sp;
@@ -323,10 +322,10 @@ static struct custom_operations stream_ops =
   custom_deserialize_default
 };
 
-CAMLprim value ocaml_pa_open_stream(value inparam, value outparam, value rate, value frames, value flags, value cb)
+CAMLprim value ocaml_pa_open_stream(value inparam, value outparam, value interleaved, value rate, value frames, value flags, value cb)
 {
-  CAMLparam5(inparam, outparam, rate, flags, cb);
-  CAMLxparam1(cb);
+  CAMLparam5(inparam, outparam, interleaved, rate, frames);
+  CAMLxparam2(flags, cb);
   CAMLlocal1(ans);
   stream_t *st;
   PaStream *stream;
@@ -341,13 +340,13 @@ CAMLprim value ocaml_pa_open_stream(value inparam, value outparam, value rate, v
 
   if(Is_block(inparam))
   {
-      ip = sp_val(Field(inparam, 0));
+      ip = sp_val(Field(inparam, 0), Int_val(interleaved));
       st->channels_in = ip->channelCount;
       st->sample_format_in = ip->sampleFormat;
   }
   if(Is_block(outparam))
   {
-      op = sp_val(Field(outparam, 0));
+      op = sp_val(Field(outparam, 0), Int_val(interleaved));
       st->channels_out = op->channelCount;
       st->sample_format_out = op->sampleFormat;
   }
@@ -377,10 +376,10 @@ CAMLprim value ocaml_pa_open_stream(value inparam, value outparam, value rate, v
 
 CAMLprim value ocaml_pa_open_stream_byte(value *argv, int argc)
 {
-  return ocaml_pa_open_stream(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+  return ocaml_pa_open_stream(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 }
 
-CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value fmt, value rate, value frames, value cb)
+CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value fmt, value interleaved, value rate, value frames, value cb)
 {
   CAMLparam5(inchans, outchans, fmt, rate, frames);
   CAMLxparam1(cb);
@@ -392,7 +391,7 @@ CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value
   int outc = Int_val(outchans);
   int sample_rate = Int_val(rate);
   int num_frames = Int_val(frames);
-  int format = fmt_val(fmt);
+  int format = fmt_val(fmt, Int_val(interleaved));
   PaStreamCallback *callb = NULL;
 
   st = malloc(sizeof(stream_t));
@@ -424,7 +423,7 @@ CAMLprim value ocaml_pa_open_default_stream(value inchans, value outchans, value
 
 CAMLprim value ocaml_pa_open_default_stream_byte(value *argv, int argc)
 {
-  return ocaml_pa_open_default_stream(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+  return ocaml_pa_open_default_stream(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 }
 
 CAMLprim value ocaml_pa_start_stream(value stream)
@@ -486,32 +485,53 @@ int get_index(int fmt, int chans, int len, int c, int i)
     return index;
 }
 
-#define GET_BUFFER(type, elem) type *bufi = malloc(chans * len * sizeof(type)); \
+#define GET_BUFFER(type, elem) { type *bufi = malloc(chans * len * sizeof(type)); \
           for(c = 0; c < chans; ++c) { \
               value bufc = Field(buf, c); \
               for(i = 0; i < len; ++i) { \
-                  bufi[get_index(fmt, chans, len, c, i)] = elem; \
+                  bufi[chans*i + c] = elem; \
               } } \
-          return bufi;
+          return bufi; }
+
+#define GET_BUFFER_NI(type, elem) { type **bufi = malloc(chans * sizeof(type*)); \
+          for(c = 0; c < chans; ++c) { \
+              bufi[c] = malloc(len * sizeof(type)); \
+              value bufc = Field(buf, c); \
+              for(i = 0; i < len; ++i) { \
+                  bufi[c][i] = elem; \
+              } } \
+          return bufi; }
 
 void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
 {
     int c, i;
     if(fmt & paFloat32)
     {
-        GET_BUFFER(float, Double_field(bufc, ofs + i))
+        if(fmt & paNonInterleaved)
+            GET_BUFFER_NI(float, Double_field(bufc, ofs + i))
+        else
+            GET_BUFFER(float, Double_field(bufc, ofs + i))
     }
     else if(fmt & paInt32 || fmt & paInt24)
     {
-        GET_BUFFER(int32, Int32_val(Field(bufc, ofs + i)))
+        if(fmt & paNonInterleaved)
+            GET_BUFFER_NI(int32, Int32_val(Field(bufc, ofs + i)))
+        else
+            GET_BUFFER(int32, Int32_val(Field(bufc, ofs + i)))
     }
     else if(fmt & paInt16)
     {
-        GET_BUFFER(short, Int_val(Field(bufc, ofs + i)))
+        if(fmt & paNonInterleaved)
+            GET_BUFFER_NI(short, Int_val(Field(bufc, ofs + i)))
+        else
+            GET_BUFFER(short, Int_val(Field(bufc, ofs + i)))
     }
     else if(fmt & paInt8)
     {
-        GET_BUFFER(char, Int_val(Field(bufc, ofs + i)))
+        if(fmt & paNonInterleaved)
+            GET_BUFFER_NI(char, Int_val(Field(bufc, ofs + i)))
+        else
+            GET_BUFFER(char, Int_val(Field(bufc, ofs + i)))
     }
     else
         return NULL;
@@ -519,24 +539,36 @@ void *get_buffer(int fmt, int chans, int ofs, int len, value buf)
 
 void *get_read_buffer(int fmt, int chans, int len)
 {
+    int size = 0;
     if(fmt & paFloat32)
     {
-        return malloc(chans * len * sizeof(float));
+        size = sizeof(float);
     }
     else if(fmt & paInt32 || fmt & paInt24)
     {
-        return malloc(chans * len * sizeof(int32));
+        size = sizeof(int32);
     }
     else if(fmt & paInt16)
     {
-        return malloc(chans * len * sizeof(short));
+        size = sizeof(short);
     }
     else if(fmt & paInt8)
     {
-        return malloc(chans * len * sizeof(char));
+        size = sizeof(char);
     }
-    else
+
+    if(size == 0)
         return NULL;
+
+    if(fmt & paNonInterleaved)
+    {
+        void ** buf = malloc(chans * sizeof(void*));
+        int i;
+        for(i = 0; i < chans; ++i)
+            buf[i] = malloc(len * size);
+        return buf;
+    }
+    return malloc(chans * len * size);
 }
 
 #define COPY_BUFFER(type, store, elem) type *buf = inbuf; \

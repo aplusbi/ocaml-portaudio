@@ -438,7 +438,7 @@ Copyright (C) 2009 Free Software Foundation, Inc.
 This config.status script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it."
 
-ac_pwd='/home/niki/projects/ocaml/system/ocaml-portaudio'
+ac_pwd='/home/niki/projects/ocaml/system/ocaml-portaudio-0.1.3'
 srcdir='.'
 test -n "$AWK" || AWK=awk
 # The default lists apply if the user does not specify any file.
@@ -599,7 +599,7 @@ S["OCAMLBEST"]="opt"
 S["OCAMLFLAGS"]=""
 S["VERSION"]="0.1.3"
 S["portaudio_LDFLAGS"]=" "
-S["portaudio_LIBS"]="-lportaudio -lm -lpthread  "
+S["portaudio_LIBS"]="-lportaudio -lasound -lm -lpthread  "
 S["portaudio_CFLAGS"]="-pthread  "
 S["PKG_CONFIG"]="/usr/bin/pkg-config"
 S["OBJEXT"]="o"

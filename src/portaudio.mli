@@ -158,13 +158,13 @@ type ('a, 'b) callback = ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a,
   * [outparam] at [rate] samples per second, with [bufframes] frames per buffer
   * passed the callback function [callback] (0 means leave this choice to
   * portaudio). *)
-val open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> float -> int -> ?callback:(('a, 'b) callback option) -> stream_flag list -> ('a, 'b) stream
+val open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> ?interleaved:bool -> float -> int -> ?callback:(('a, 'b) callback option) -> stream_flag list -> ('a, 'b) stream
 
 (** [open_default_stream callback format inchans outchans rate bufframes] opens
   * default stream with [callback] as callback function, handling samples in
   * [format] format with [inchans] input channels and [outchans] output channels
   * at [rate] samples per seconds with handling buffers of size [bufframes]. *)
-val open_default_stream : ?callback:(('a, 'b) callback option) -> ?format:(('a, 'b) sample_format) -> int -> int -> int -> int -> ('a, 'b) stream
+val open_default_stream : ?callback:(('a, 'b) callback option) -> ?format:(('a, 'b) sample_format) -> ?interleaved:bool -> int -> int -> int -> int -> ('a, 'b) stream
 
 (** Close a stream. *)
 val close_stream : ('a, 'b) stream -> unit

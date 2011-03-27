@@ -18,6 +18,15 @@ let choose_format () =
     done;
     read_int ()
 
+let rec choose_interleaved () =
+    print_endline "0 Non-interleaved";
+    print_endline "1 Interleaved";
+    match read_int () with
+    | 0 -> false
+    | 1 -> true
+    | _ -> choose_interleaved ()
+
+
 let choose_callback () =
     print_endline "0 blocking write";
     print_endline "1 callback";
@@ -50,45 +59,45 @@ let test_bigarray stream batype randf randv =
         Portaudio.write_stream_ba stream ba 0 256
     done
 
-let start d = function
+let start d inter = function
     | 0 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int8; latency=1. } in
-        let stream = open_stream None outparam 11025. 256 [] in
+        let stream = open_stream ~interleaved:inter None outparam 11025. 256 [] in
         start_stream stream;
         test_array stream 0 Random.int 256;
         test_bigarray stream int8_signed Random.int 256;
         close_stream stream
     | 1 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int16; latency=1. } in
-        let stream = open_stream None outparam 11025. 256 [] in
+        let stream = open_stream ~interleaved:inter None outparam 11025. 256 [] in
         start_stream stream;
         test_array stream 0 Random.int 65536;
         test_bigarray stream int16_signed Random.int 65536;
         close_stream stream
     | 2 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int24; latency=1. } in
-        let stream = open_stream None outparam 11025. 256 [] in
+        let stream = open_stream ~interleaved:inter None outparam 11025. 256 [] in
         start_stream stream;
         test_array stream Int32.zero Random.int32 (Int32.of_int (4096*4096));
         test_bigarray stream int32 Random.int32 (Int32.of_int (4096*4096));
         close_stream stream
     | 3 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int32; latency=1. } in
-        let stream = open_stream None outparam 11025. 256 [] in
+        let stream = open_stream ~interleaved:inter None outparam 11025. 256 [] in
         start_stream stream;
         test_array stream Int32.zero Random.int32 Int32.max_int;
         test_bigarray stream int32 Random.int32 Int32.max_int;
         close_stream stream
     | 4 ->
         let outparam = Some { channels=2; device=d; sample_format=format_float32; latency=1. } in
-        let stream = open_stream None outparam 11025. 256 [] in
+        let stream = open_stream ~interleaved:inter None outparam 11025. 256 [] in
         start_stream stream;
         test_array stream 0. (fun () -> 1. -. (Random.float 2.)) ();
         test_bigarray stream float32 (fun () -> 1. -. (Random.float 2.)) ();
         close_stream stream
     | _ -> ()
 
-let start_callback d fmt =
+let start_callback d inter fmt =
     let cb r x y l =
         for i = 0 to 2*l - 1 do
             Genarray.set y [|i|] (r ()) 
@@ -99,35 +108,35 @@ let start_callback d fmt =
     | 0 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int8; latency=1. } in
         let r () = Random.int 256 in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(Some (cb r)) ~interleaved:inter None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 1 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int16; latency=1. } in
         let r () = Random.int 65536 in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(Some (cb r)) ~interleaved:inter None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 2 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int24; latency=1. } in
         let r () = Random.int32 (Int32.of_int (4096*4096)) in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(Some (cb r)) ~interleaved:inter None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 3 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int32; latency=1. } in
         let r () = Random.int32 (Int32.max_int) in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(Some (cb r)) ~interleaved:inter None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 4 ->
         let outparam = Some { channels=2; device=d; sample_format=format_float32; latency=1. } in
         let r () = 1. -. (Random.float 2.) in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(Some (cb r)) ~interleaved:inter None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
@@ -137,9 +146,10 @@ let rec main () =
     let d = choose_device () in
     if d = -1 then exit 0;
     let fmt = choose_format () in
+    let inter = choose_interleaved () in
     (match choose_callback () with
-    | 0 -> start d fmt
-    | 1 -> start_callback d fmt
+    | 0 -> start d inter fmt
+    | 1 -> start_callback d inter fmt
     | _ -> ());
     main ()
 
