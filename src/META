@@ -1,6 +1,6 @@
 name = "portaudio"
 version = "@VERSION"
 description = "OCaml bindings to PortAudio"
-requires = ""
+requires = "threads, bigarray"
 archive(byte) = "portaudio.cma"
 archive(native) = "portaudio.cmxa"
