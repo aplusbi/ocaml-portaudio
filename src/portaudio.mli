@@ -119,24 +119,25 @@ val get_device_info : int -> device_info
 
 (** {2 Streams} *)
 
-(** Format of samples. *)
-(*type sample_format =*)
-  (*| Format_int8*)
-  (*| Format_int16*)
-  (*| Format_int24*)
-  (*| Format_int32*)
-  (*| Format_float32*)
-
+(**   The abstract type [('a, 'b) sample_format] describes the OCaml type ['a]
+ * and the underlying C type ['a] used to represent the data being written to or
+ * read from a stream.  This type is compatible with [('a, 'b) Bigarray.kind]. *)
 type ('a, 'b) sample_format
 
+(** See {!Portaudio.format_float32}. *)
 val format_int8 : (int, Bigarray.int8_signed_elt) sample_format
 
+(** See {!Portaudio.format_float32}. *)
 val format_int16 : (int, Bigarray.int16_signed_elt) sample_format
 
+(** See {!Portaudio.format_float32}. *)
 val format_int24 : (int32, Bigarray.int32_elt) sample_format
 
+(** See {!Portaudio.format_float32}. *)
 val format_int32 : (int32, Bigarray.int32_elt) sample_format
 
+(** The stream uses floats in the range of [-1.,1.] to represent audio data.
+ * The underlying type is a 32 bit float. *)
 val format_float32 : (float, Bigarray.float32_elt) sample_format
 
 type ('a, 'b) stream_parameters =
@@ -151,18 +152,22 @@ type stream_flag
 
 type ('a, 'b) stream
 
+(** The function signature of a callback.  Callbacks only work with interleaved
+ * streams. *)
 type ('a, 'b) callback = ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int
 
-(** [open_stream inparam outparam rate bufframes callback flags] opens a new
+(** [open_stream inparam outparam interleaved rate bufframes callback flags] opens a new
   * stream with input stream of format [inparam], output stream of format
-  * [outparam] at [rate] samples per second, with [bufframes] frames per buffer
+  * [outparam] using interleaved or non-interleaved [interleaved] buffers
+  * at [rate] samples per second, with [bufframes] frames per buffer
   * passed the callback function [callback] (0 means leave this choice to
   * portaudio). *)
 val open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> ?interleaved:bool -> float -> int -> ?callback:(('a, 'b) callback option) -> stream_flag list -> ('a, 'b) stream
 
-(** [open_default_stream callback format inchans outchans rate bufframes] opens
-  * default stream with [callback] as callback function, handling samples in
-  * [format] format with [inchans] input channels and [outchans] output channels
+(** [open_default_stream callback format interleaved inchans outchans rate bufframes]
+ * opens default stream with [callback] as callback function, handling samples in
+  * [format] format using interleaved or non-interleaved buffers [interleaved] with
+  * [inchans] input channels and [outchans] output channels
   * at [rate] samples per seconds with handling buffers of size [bufframes]. *)
 val open_default_stream : ?callback:(('a, 'b) callback option) -> ?format:(('a, 'b) sample_format) -> ?interleaved:bool -> int -> int -> int -> int -> ('a, 'b) stream
 
