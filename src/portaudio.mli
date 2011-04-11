@@ -150,11 +150,11 @@ type ('a, 'b) stream_parameters =
 
 type stream_flag
 
-type ('a, 'b) stream
+type ('a, 'b, 'c, 'd) stream
 
 (** The function signature of a callback.  Callbacks only work with interleaved
  * streams. *)
-type ('a, 'b) callback = ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int
+type ('a, 'b, 'c, 'd) callback = ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('c, 'd, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int
 
 (** [open_stream inparam outparam interleaved rate bufframes callback flags] opens a new
   * stream with input stream of format [inparam], output stream of format
@@ -162,38 +162,40 @@ type ('a, 'b) callback = ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a,
   * at [rate] samples per second, with [bufframes] frames per buffer
   * passed the callback function [callback] (0 means leave this choice to
   * portaudio). *)
-val open_stream : ('a, 'b) stream_parameters option -> ('a, 'b) stream_parameters option -> ?interleaved:bool -> float -> int -> ?callback:(('a, 'b) callback option) -> stream_flag list -> ('a, 'b) stream
+val open_stream : ('a, 'b) stream_parameters option -> ('c, 'd) stream_parameters option -> ?interleaved:bool ->
+    float -> int -> ?callback:(('a, 'b, 'c, 'd) callback) -> stream_flag list -> ('a, 'b, 'c, 'd) stream
 
 (** [open_default_stream callback format interleaved inchans outchans rate bufframes]
  * opens default stream with [callback] as callback function, handling samples in
   * [format] format using interleaved or non-interleaved buffers [interleaved] with
   * [inchans] input channels and [outchans] output channels
   * at [rate] samples per seconds with handling buffers of size [bufframes]. *)
-val open_default_stream : ?callback:(('a, 'b) callback option) -> ?format:(('a, 'b) sample_format) -> ?interleaved:bool -> int -> int -> int -> int -> ('a, 'b) stream
+val open_default_stream : ?callback:(('a, 'b, 'a, 'b) callback) -> ?format:(('a, 'b) sample_format) ->
+    ?interleaved:bool -> int -> int -> int -> int -> ('a, 'b, 'a, 'b) stream
 
 (** Close a stream. *)
-val close_stream : ('a, 'b) stream -> unit
+val close_stream : ('a, 'b, 'c, 'd) stream -> unit
 
 (** Start a stream. *)
-val start_stream : ('a, 'b) stream -> unit
+val start_stream : ('a, 'b, 'c, 'd) stream -> unit
 
 (** Stop a stream. *)
-val stop_stream : ('a, 'b) stream -> unit
+val stop_stream : ('a, 'b, 'c, 'd) stream -> unit
 
 (** Abort a stream. *)
-val abort_stream : ('a, 'b) stream -> unit
+val abort_stream : ('a, 'b, 'c, 'd) stream -> unit
 
 (** Sleep. *)
 val sleep : int -> unit
 
 (** Write to a stream. *)
-val write_stream : ('a, 'b) stream -> 'a array array -> int -> int -> unit
+val write_stream : ('a, 'b, 'c, 'd) stream -> 'c array array -> int -> int -> unit
 
 (** Read from a stream. *)
-val read_stream : ('a, 'b) stream -> 'a array array -> int -> int -> unit
+val read_stream : ('a, 'b, 'c, 'd) stream -> 'a array array -> int -> int -> unit
 
 (** Write to a stream using a bigarray. *)
-val write_stream_ba : ('a, 'b) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
+val write_stream_ba : ('a, 'b, 'c, 'd) stream -> ('c, 'd, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
 
 (** Read from a stream using a bigarray. *)
-val read_stream_ba : ('a, 'b) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit
+val read_stream_ba : ('a, 'b, 'c, 'd) stream -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> int -> int -> unit

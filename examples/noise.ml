@@ -115,35 +115,35 @@ let start_callback d fmt =
     | 0 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int8; latency=1. } in
         let r () = Random.int 256 in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(cb r) None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 1 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int16; latency=1. } in
         let r () = Random.int 65536 in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(cb r) None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 2 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int24; latency=1. } in
         let r () = Random.int32 (Int32.of_int (4096*4096)) in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(cb r) None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 3 ->
         let outparam = Some { channels=2; device=d; sample_format=format_int32; latency=1. } in
         let r () = Random.int32 (Int32.max_int) in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(cb r) None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
     | 4 ->
         let outparam = Some { channels=2; device=d; sample_format=format_float32; latency=1. } in
         let r () = 1. -. (Random.float 2.) in
-        let stream = open_stream ~callback:(Some (cb r)) None outparam 11025. 0 [] in
+        let stream = open_stream ~callback:(cb r) None outparam 11025. 0 [] in
         start_stream stream;
         sleep 5000;
         close_stream stream
